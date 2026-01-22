@@ -1,0 +1,19 @@
+# MCP Server Configuration
+# Note: Authentication is now handled via ck-domain header in MCP client config
+
+# Server configuration
+PORT=8547
+HOST=0.0.0.0
+
+# Logging configuration
+# Available levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
+# Default: INFO (shows INFO, WARNING, ERROR, CRITICAL)
+# Set to DEBUG to see debug logs as well
+LOG_LEVEL=INFO
+
+# Nexus API endpoint configuration
+# Default: Uses AWS ELB endpoint if not set
+# For local development: set to your local Nexus instance
+# For production: set to your production Nexus endpoint
+# For Kubernetes/Helm: this environment variable will be set by your deployment
+CK_NEXUS_ENDPOINT=http://your-nexus-instance.com:8081

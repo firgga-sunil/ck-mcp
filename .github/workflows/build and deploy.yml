@@ -1,0 +1,252 @@
+name: ck-mcp-server
+
+on:
+  workflow_dispatch:
+    inputs:
+      auto_deploy:
+        description: 'Trigger deployment after build (true/false)'
+        required: true
+        default: 'false'
+      target_environment:
+        description: 'Select target cloud + environment'
+        required: true
+        type: choice
+        options:
+          - gcp-prod
+          - gcp-demo
+          - aws-prod
+          - aws-ckqa
+      demo_confirmation:
+        description: 'Type "deploy in demo" to confirm deployment for demo targets (legacy)'
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+env:
+  CLUSTER_REGION: us-east1
+  AWS_REGION: us-east-1
+  CLUSTER_NAMESPACE: test-deployment
+  RELEASE_NAME: ck-mcp-server
+  DOCKER_REGISTRY: ghcr.io
+  DOCKER_REGISTRY_USERNAME: ckgitrepouser
+  DOCKER_IMAGE_NAME: ck-mcp-server
+  PROJECT_ID: resounding-node-471205-f9
+
+jobs:
+  validate-inputs:
+    name: Validate Inputs
+    runs-on: ubuntu-22.04
+    outputs:
+      target_environment: ${{ github.event.inputs.target_environment }}
+    steps:
+      - name: Validate auto_deploy input and confirmations
+        run: |
+          AUTO_DEPLOY="${{ github.event.inputs.auto_deploy }}"
+          TARGET="${{ github.event.inputs.target_environment }}"
+          DEMOCONF="${{ github.event.inputs.demo_confirmation }}"
+
+          if [[ "$AUTO_DEPLOY" != "true" && "$AUTO_DEPLOY" != "false" ]]; then
+            echo "Invalid auto_deploy input. Must be 'true' or 'false'."
+            exit 1
+          fi
+
+          if [[ "$AUTO_DEPLOY" == "true" ]]; then
+            if [[ "$TARGET" == *demo* && "$DEMOCONF" == "deploy in demo" ]]; then
+              echo "✅ Legacy demo_confirmation matched for demo target."
+            elif [[ "$TARGET" != *demo* ]]; then
+              echo "✅ Auto deploy confirmed for non-demo target: $TARGET"
+            else
+              echo "❌ Missing confirmation for demo target."
+              exit 1
+            fi
+          else
+            echo "Auto deploy is false — deployment won't be triggered automatically."
+          fi
+
+  build-and-push:
+    name: Build and Push Docker Image
+    needs: validate-inputs
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    outputs:
+      image-repository: ${{ steps.set-vars.outputs.image-repository }}
+      image-tag: ${{ steps.set-vars.outputs.image-tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ env.DOCKER_REGISTRY_USERNAME }}
+          password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
+
+      - name: Set image variables
+        id: set-vars
+        run: |
+          echo "image-repository=${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REGISTRY_USERNAME }}/${{ env.DOCKER_IMAGE_NAME }}" >> $GITHUB_OUTPUT
+          echo "image-tag=v${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.set-vars.outputs.image-repository }}:${{ steps.set-vars.outputs.image-tag }}
+
+  build-summary:
+    name: Build Summary
+    needs: build-and-push
+    runs-on: ubuntu-22.04
+    continue-on-error: false
+    steps:
+      - name: Create Build Summary
+        run: |
+          echo "## 🏗️ DEMO BUILD SUMMARY" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Demo Build Completed Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Docker Image Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Repository**: \`${{ needs.build-and-push.outputs.image-repository }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag**: \`${{ needs.build-and-push.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Full Image**: \`${{ needs.build-and-push.outputs.image-repository }}:${{ needs.build-and-push.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🏷️ Demo Build Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: \`${{ needs.build-and-push.outputs.environment }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit ID**: \`${{ needs.build-and-push.outputs.commit-id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **No GitHub Release**: Demo builds don't create releases" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🌍 Build Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Number**: \`${{ github.run_number }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by**: \`${{ github.actor }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
+          echo "- **Docker Registry**: [View Image](https://${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REGISTRY_USERNAME }}/${{ github.event.inputs.target_environment }}/${{ env.DOCKER_IMAGE_NAME }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitHub Repository**: [View Repo](https://github.com/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 Next Steps" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event.inputs.auto_deploy }}" = "true" ]; then
+            echo "- **Auto-deploy**: ✅ Enabled - Deploying to \`${{ github.event.inputs.target_environment }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Auto-deploy**: ❌ Disabled - Use deploy workflow to deploy this image" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- **Manual Deploy**: Use the \`deploy-demo.yml\` workflow with image tag: \`${{ needs.build-and-push.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+
+
+  trigger-deploy:
+    name: Trigger Deploy
+    needs: build-and-push
+    runs-on: ubuntu-22.04
+    if: ${{ github.event.inputs.auto_deploy == 'true' }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # -----------------------
+      # GCP Authentication
+      # -----------------------
+      - name: Authenticate to GCP (Workload Identity) 
+        if: startsWith(github.event.inputs.target_environment, 'gcp-')
+        uses: google-github-actions/auth@v3
+        with:
+          token_format: access_token
+          workload_identity_provider: 'projects/883346821541/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider'
+          service_account: 'github-deployer@resounding-node-471205-f9.iam.gserviceaccount.com'
+
+      - name: Set up gcloud
+        if: startsWith(github.event.inputs.target_environment, 'gcp-')
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Install gke-gcloud-auth-plugin
+        if: startsWith(github.event.inputs.target_environment, 'gcp-')
+        run: |
+          gcloud components install gke-gcloud-auth-plugin --quiet
+          echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
+
+      - name: Get GKE credentials
+        if: startsWith(github.event.inputs.target_environment, 'gcp-')
+        run: |
+          if [[ "${{ github.event.inputs.target_environment }}" == "gcp-demo" ]]; then
+            CLUSTER_NAME=demo-cluster
+            CLUSTER_REGION=us-east1
+          else
+            CLUSTER_NAME=prod-cluster
+            CLUSTER_REGION=us-east1
+          fi
+          echo "CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_ENV
+          echo "CLUSTER_REGION=$CLUSTER_REGION" >> $GITHUB_ENV
+          gcloud container clusters get-credentials "$CLUSTER_NAME" --region "$CLUSTER_REGION" --project ${{ env.PROJECT_ID }}
+
+      # -----------------------
+      # AWS Authentication
+      # -----------------------
+      - name: Configure AWS Credentials
+        if: startsWith(github.event.inputs.target_environment, 'aws-')
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig for EKS
+        if: startsWith(github.event.inputs.target_environment, 'aws-')
+        run: |
+          if [[ "${{ github.event.inputs.target_environment }}" == "aws-prod" ]]; then
+            CLUSTER_NAME=prod-eks-cluster
+          else
+            CLUSTER_NAME=ckqa-eks-cluster
+          fi
+          aws eks update-kubeconfig --name "$CLUSTER_NAME" --region ${{ env.AWS_REGION }}
+
+      # -----------------------
+      # Helm Deployment
+      # -----------------------
+      - uses: azure/setup-helm@v4
+
+      - name: Ensure namespace exists
+        run: |
+          kubectl get namespace ${{ env.CLUSTER_NAMESPACE }} || \
+          kubectl create namespace ${{ env.CLUSTER_NAMESPACE }}
+
+      - name: Deploy MCP Helm Chart
+        run: |
+          TARGET="${{ github.event.inputs.target_environment }}"
+          case "$TARGET" in
+            gcp-demo)
+              VALUES_FILE=./charts/ck-mcp-charts/values-gcp-demo.yaml
+              ;;
+            gcp-prod)
+              VALUES_FILE=./charts/ck-mcp-charts/values-gcp-prod.yaml
+              ;;
+            aws-ckqa)
+              VALUES_FILE=./charts/ck-mcp-charts/values-aws-ckqa.yaml
+              ;;
+            aws-prod)
+              VALUES_FILE=./charts/ck-mcp-charts/values-aws-prod.yaml
+              ;;
+            *)
+              echo "Unknown target environment: $TARGET"
+              exit 1
+              ;;
+          esac
+
+          helm upgrade --install ${{ env.RELEASE_NAME }} ./charts/ck-mcp-charts \
+            --namespace ${{ env.CLUSTER_NAMESPACE }} \
+            -f $VALUES_FILE \
+            --set image.repository=${{ needs.build-and-push.outputs.image-repository }} \
+            --set image.tag=${{ needs.build-and-push.outputs.image-tag }} \
+            --wait --timeout 180s

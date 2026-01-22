@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "codekarma-insights": {
+      "command": "/Users/anantharam.v/workspace/code-lens/ck-mcp-server/venv/bin/python",
+      "args": [
+        "/Users/anantharam.v/workspace/code-lens/ck-mcp-server/server.py"
+      ],
+      "env": {
+        "CK_NEXUS_ENDPOINT": "http://localhost:8081"
+      },
+      "description": "CodeKarma Insights MCP Server - provides production code usage analysis, test generation, dead code detection, and performance optimization suggestions"
+    }
+  }
+}

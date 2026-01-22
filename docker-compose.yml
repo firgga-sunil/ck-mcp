@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  codekarma-mcp-server:
+    build: .
+    container_name: codekarma-mcp-server
+    ports:
+      - "8547:8547"
+    environment:
+      - PORT=8547
+      - HOST=0.0.0.0
+      - CK_NEXUS_ENDPOINT=${CK_NEXUS_ENDPOINT}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8547/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - nexus-network
+
+networks:
+  nexus-network:
+    driver: bridge
