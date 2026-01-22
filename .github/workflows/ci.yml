@@ -29,7 +29,7 @@ jobs:
         uses: firgga-sunil/poc-app-of-apps/.github/actions/docker-build-push@main
         with:
           image: ${{ env.DOCKER_IMAGE_PATH }}
-          new_tag: ${{ steps.version.outputs.new_tag }}
+          tag: ${{ steps.version.outputs.tag }}
           username: ${{ secrets.GPR_USER }}
           password: ${{ secrets.GPR_TOKEN }}
 
@@ -37,13 +37,13 @@ jobs:
         uses: firgga-sunil/poc-app-of-apps/.github/actions/verify-image-upload@main
         with:
           image: ${{ env.DOCKER_IMAGE_PATH }}
-          tag: ${{ steps.version.outputs.new_tag }}  
+          tag: ${{ steps.version.outputs.tag }}  
  
       - name: Create GitHub Release
         uses: firgga-sunil/poc-app-of-apps/.github/actions/create-github-release@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          new_tag: ${{ steps.version.outputs.new_tag }}
+          tag: ${{ steps.version.outputs.tag }}
           latest_tag: ${{ steps.version.outputs.latest_tag }}
           image: ${{ env.DOCKER_IMAGE_PATH }}
       # -------------------------------
