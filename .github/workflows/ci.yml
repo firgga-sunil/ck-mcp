@@ -30,6 +30,8 @@ jobs:
         with:
           image: ${{ env.DOCKER_IMAGE_PATH }}
           tag: ${{ steps.version.outputs.new_tag }}
+          image: ${{ env.DOCKER_IMAGE_PATH }}
+          tag: ${{ steps.version.outputs.new_tag }}
           username: ${{ secrets.GPR_USER }}
           password: ${{ secrets.GPR_TOKEN }}
 
@@ -40,6 +42,12 @@ jobs:
           tag: ${{ steps.version.outputs.new_tag }}  
  
       - name: Create GitHub Release
+        uses: firgga-sunil/poc-app-of-apps/.github/actions/create-github-release@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          new_tag: ${{ steps.version.outputs.new_tag }}
+          latest_tag: ${{ steps.version.outputs.latest_tag }}
+          image: ${{ env.DOCKER_IMAGE_PATH }}
         uses: firgga-sunil/poc-app-of-apps/.github/actions/create-github-release@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -57,5 +65,6 @@ jobs:
           echo "" | tee -a $GITHUB_STEP_SUMMARY
           echo "**Previous Tag:** ${{ steps.get-latest-tag.outputs.latest_tag }}" | tee -a $GITHUB_STEP_SUMMARY
           echo "**New Tag:** ${{ steps.bump-version.outputs.new_tag }}" | tee -a $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ env.DOCKER_IMAGE_PATH }}:${{ steps.bump-version.outputs.new_tag }}\`" | tee -a $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ env.DOCKER_IMAGE_PATH }}:${{ steps.bump-version.outputs.new_tag }}\`" | tee -a $GITHUB_STEP_SUMMARY
           echo "**Platforms:** linux/amd64, linux/arm64" | tee -a $GITHUB_STEP_SUMMARY
