@@ -58,5 +58,4 @@ jobs:
           echo "**Previous Tag:** ${{ steps.version.outputs.previous_tag }}" | tee -a $GITHUB_STEP_SUMMARY
           echo "**New Tag:** ${{ steps.version.outputs.new_tag }}" | tee -a $GITHUB_STEP_SUMMARY
           echo "**Image:** \`${{ env.DOCKER_IMAGE_PATH }}:${{ steps.version.outputs.new_tag }}\`" | tee -a $GITHUB_STEP_SUMMARY
-          echo "**Image:** \`${{ env.DOCKER_IMAGE_PATH }}:${{ steps.version.outputs.new_tag }}\`" | tee -a $GITHUB_STEP_SUMMARY
           echo "**Platforms:** linux/amd64, linux/arm64" | tee -a $GITHUB_STEP_SUMMARY
